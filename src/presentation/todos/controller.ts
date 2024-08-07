@@ -1,57 +1,86 @@
 import { Request, Response } from "express";
-
-const todos = [
-  { id: 1, text: "Buy milk", done: false },
-  { id: 2, text: "Buy bread", done: true },
-  { id: 3, text: "Buy butter", done: false },
-];
+import { prisma } from "../../data/postgres";
+import { TodoDTO } from "../../domain/dtos/todos/todo.dto";
 
 export class TodosController {
   constructor() {}
 
-  public getTodos = (req: Request, res: Response) => {
-    return res.json(todos);
+  public getTodos = async (req: Request, res: Response) => {
+    return res.json(await prisma.todo.findMany());
   };
 
-  public getTodoById(req: Request, res: Response) {
-    const id = +req.params.id;
-    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
-    const todo = todos.find((todo) => todo.id === id);
+  public getTodoById = async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const todo = await prisma.todo.findUnique({
+      where: {
+        id: id,
+      },
+    });
     if (!todo) {
       return res.status(404).json({ message: `Todo with id ${id} not found` });
     }
     return res.json(todo);
-  }
+  };
 
-  public createTodo = (req: Request, res: Response) => {
-    const { text, done } = req.body;
-    if (!text) return res.status(400).json({ message: "Text is required" });
-    const newTodo = { id: todos.length + 1, text, done: done || false };
-    todos.push(newTodo);
-    return res.status(201).json(newTodo);
-  }
+  public createTodo = async (req: Request, res: Response) => {
+    const [errors, createTodoDTO] = TodoDTO.validate(req.body);
+    if (errors) {
+      return res.status(400).json({ message: "Invalid data", errors });
+    }
+    try {
+      const todo = await prisma.todo.create({ data: createTodoDTO!.todo });
+      res.status(201).json(todo);
+    } catch (error) {
+      console.log(error)
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
 
-  public updateTodo = (req: Request, res: Response) => {
-    const id = +req.params.id;
-    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
-    const todo = todos.find((todo) => todo.id === id);
+  public updateTodo = async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const todo = await prisma.todo.findUnique({
+      where: {
+        id: id,
+      },
+    });
     if (!todo) {
       return res.status(404).json({ message: `Todo with id ${id} not found` });
     }
-    const { text, done } = req.body;
-    if (text) todo.text = text;
-    if (done) todo.done = done;
-    return res.json(todo);
-  }
+    const [errors, updateTodoTDO] = TodoDTO.validate(req.body);
+    if (errors) {
+      return res.status(400).json({ message: "Invalid data", errors });
+    }
+    try {
+      const todo = await prisma.todo.update(
+        {
+          where: {
+            id,
+          },
+          data: updateTodoTDO!.todo,
+        }
+      );
+      res.status(201).json(todo);
+    } catch (error) {
+      console.log(error)
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
 
-  public deleteTodo = (req: Request, res: Response) => {
-    const id = +req.params.id;
-    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
-    const todoIndex = todos.findIndex((todo) => todo.id === id);
-    if (todoIndex === -1) {
+  public deleteTodo = async (req: Request, res: Response) => {
+    const id = req.params.id;
+    const todo = await prisma.todo.findFirst({
+      where: {
+        id,
+      },
+    });
+    if (!todo) {
       return res.status(404).json({ message: `Todo with id ${id} not found` });
     }
-    todos.splice(todoIndex, 1);
-    return res.status(204).json();
-  }
+    const deleted = await prisma.todo.delete({
+      where: {
+        id,
+      },
+    });
+    return res.json({ todo, deleted });
+  };
 }
