@@ -13,9 +13,8 @@ datasource db {
   url      = env("POSTGRES_URL")
 }
 
-
 model Todo {
-  id        String   @id @default(cuid())
-  text     String
-  completed DateTime? @db.Timestamp() 
+  id        String    @id @default(cuid())
+  text      String
+  completed DateTime? @db.Timestamp()
 }

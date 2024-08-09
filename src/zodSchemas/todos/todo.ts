@@ -3,8 +3,9 @@ import { z } from "zod";
 const iso8601DateTimeRegex =
   /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?([+-]\d{2}:\d{2}|Z)?)$/;
 
-export const todoSchemaValidator = z.object({
-  id: z.string().optional(),
+
+// Define the common schema without the id field
+const baseTodoSchema = z.object({
   text: z.string().min(1),
   completed: z
     .string()
@@ -15,4 +16,15 @@ export const todoSchemaValidator = z.object({
     .optional(),
 });
 
-export type TodoValidatorT = z.infer<typeof todoSchemaValidator>;
+// Define the schema for creating a new todo (id is optional)
+export const createTodoSchemaValidator = baseTodoSchema.extend({
+  id: z.string().optional(),
+});
+
+// Define the schema for updating an existing todo (id is required)
+export const updateTodoSchemaValidator = baseTodoSchema.extend({
+  id: z.string(), // id is required for updates
+});
+
+export type CreateTodoValidatorT = z.infer<typeof createTodoSchemaValidator>;
+export type UpdateTodoValidatorT = z.infer<typeof updateTodoSchemaValidator>;

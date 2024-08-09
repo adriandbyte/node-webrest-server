@@ -1,86 +1,74 @@
 import { Request, Response } from "express";
-import { prisma } from "../../data/postgres";
 import { TodoDTO } from "../../domain/dtos/todos/todo.dto";
-
+import {
+  CreateTodo,
+  DeleteTodo,
+  GetTodo,
+  GetTodos,
+  TodoRepository,
+  UpdateTodo,
+} from "../../domain";
 export class TodosController {
-  constructor() {}
+  constructor(private readonly todoRepository: TodoRepository) {}
 
-  public getTodos = async (req: Request, res: Response) => {
-    return res.json(await prisma.todo.findMany());
+  public getTodos = (req: Request, res: Response) => {
+    new GetTodos(this.todoRepository)
+      .execute()
+      .then((todos) => res.status(200).json(todos))
+      .catch((error) => res.status(404).json({ message: error }));
   };
 
-  public getTodoById = async (req: Request, res: Response) => {
+  public getTodoById = (req: Request, res: Response) => {
     const id = req.params.id;
-    const todo = await prisma.todo.findUnique({
-      where: {
-        id: id,
-      },
-    });
-    if (!todo) {
-      return res.status(404).json({ message: `Todo with id ${id} not found` });
-    }
-    return res.json(todo);
+    if (!id) return res.status(400).json({ message: "Id is required" });
+
+    new GetTodo(this.todoRepository)
+      .execute(id)
+      .then((todo) => res.status(200).json(todo))
+      .catch((error) => res.status(404).json({ message: error }));
   };
 
-  public createTodo = async (req: Request, res: Response) => {
-    const [errors, createTodoDTO] = TodoDTO.validate(req.body);
-    if (errors) {
-      return res.status(400).json({ message: "Invalid data", errors });
+  public createTodo = (req: Request, res: Response) => {
+    const [validationErrors, createTodoDTO] = TodoDTO.validateCreateTodo(
+      req.body
+    );
+    if (validationErrors) {
+      return res
+        .status(400)
+        .json({ message: "Invalid data", validationErrors });
     }
-    try {
-      const todo = await prisma.todo.create({ data: createTodoDTO!.todo });
-      res.status(201).json(todo);
-    } catch (error) {
-      console.log(error)
-      res.status(500).json({ message: "Internal server error" });
-    }
+
+    new CreateTodo(this.todoRepository)
+      .execute(createTodoDTO!)
+      .then((todo) => res.status(201).json(todo))
+      .catch((error) => res.status(404).json({ message: error }));
   };
 
-  public updateTodo = async (req: Request, res: Response) => {
+  public updateTodo = (req: Request, res: Response) => {
     const id = req.params.id;
-    const todo = await prisma.todo.findUnique({
-      where: {
-        id: id,
-      },
+    const [validationErrors, updateTodoTDO] = TodoDTO.validateUpdateTodo({
+      ...req.body,
+      id,
     });
-    if (!todo) {
-      return res.status(404).json({ message: `Todo with id ${id} not found` });
+    if (validationErrors) {
+      return res
+        .status(400)
+        .json({ message: "Invalid data", validationErrors });
     }
-    const [errors, updateTodoTDO] = TodoDTO.validate(req.body);
-    if (errors) {
-      return res.status(400).json({ message: "Invalid data", errors });
-    }
-    try {
-      const todo = await prisma.todo.update(
-        {
-          where: {
-            id,
-          },
-          data: updateTodoTDO!.todo,
-        }
-      );
-      res.status(201).json(todo);
-    } catch (error) {
-      console.log(error)
-      res.status(500).json({ message: "Internal server error" });
-    }
+    new UpdateTodo(this.todoRepository)
+      .execute(updateTodoTDO!)
+      .then((todo) => res.status(200).json(todo))
+      .catch((error) => res.status(404).json({ message: error }));
   };
 
-  public deleteTodo = async (req: Request, res: Response) => {
+  public deleteTodo = (req: Request, res: Response) => {
     const id = req.params.id;
-    const todo = await prisma.todo.findFirst({
-      where: {
-        id,
-      },
-    });
-    if (!todo) {
-      return res.status(404).json({ message: `Todo with id ${id} not found` });
+    if (!id) {
+      return res.status(400).json({ message: "Id is required" });
     }
-    const deleted = await prisma.todo.delete({
-      where: {
-        id,
-      },
-    });
-    return res.json({ todo, deleted });
+    new DeleteTodo(this.todoRepository)
+      .execute(id)
+      .then(() => res.status(204).send())
+      .catch((error) => res.status(404).json({ message: error }));
   };
 }
